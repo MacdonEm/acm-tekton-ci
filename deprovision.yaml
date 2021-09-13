@@ -1,0 +1,26 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: deprovision
+spec:
+  steps:
+    - name: clusterpool-claim
+      env:
+        - name: CLUSTER_HOST_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: prac-secret
+              key: key2
+        - name: CLUSTER_HOST_API
+          valueFrom:
+            secretKeyRef: 
+              name: prac-secret
+              key: key1
+      image: quay.io/emmacdon/simple-build-harness:latest
+      script: |
+        git clone https://github.com/cloudposse/build-harness.git
+        git clone https://github.com/open-cluster-management/build-harness-extensions.git
+        cd build-harness
+        make clusterpool/list-clusterclaims CLUSTERPOOL_HOST_TOKEN=$CLUSTER_HOST_TOKEN CLUSTERPOOL_HOST_API=$CLUSTER_HOST_API CLUSTERPOOL_LIST_ARGUMENTS=" -o json"  | jq -r '.items[] | .metadata.name' | grep "tekton" > tekton_clusterclaims.txt
+        export clusterpool_to_checkin=$(head -n 1 tekton_clusterclaims.txt)
+        make clusterpool/checkin CLUSTERPOOL_HOST_TOKEN=$CLUSTER_HOST_TOKEN CLUSTERPOOL_HOST_API=$CLUSTER_HOST_API CLUSTERPOOL_CLUSTER_CLAIM=$clusterpool_to_checkin
