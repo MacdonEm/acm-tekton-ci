@@ -1,0 +1,40 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: ci-tools
+  labels:
+    app.kubernetes.io/version: "0.0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/categories: Kubernetes
+    tekton.dev/tags: "aws, openshift, rhacm"
+    tekton.dev/displayName: "cm ClusterPool Checkout"
+    tekton.dev/platforms: "linux/amd64"
+spec:
+  description: |
+    Setup environment.
+
+    This task sets up the environment to use during the predicted run through
+    the pipeline.
+  workspaces:
+  - name: build-harness
+    mountPath: /tekton/home/ci-tools
+    description: A workspace for the tools needed
+  steps:
+    - name: environment-setup
+      env:
+        - name: CLUSTER_HOST_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: prac-secret
+              key: key2
+        - name: CLUSTER_HOST_API
+          valueFrom:
+            secretKeyRef: 
+              name: prac-secret
+              key: key1
+      image: quay.io/emmacdon/simple-dev:latest
+      script: |
+        cd /tekton/home/ci-tools
+        git clone https://github.com/cloudposse/build-harness.git
+        git clone https://github.com/open-cluster-management/build-harness-extensions.git

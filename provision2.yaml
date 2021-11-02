@@ -1,0 +1,34 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: provision2
+spec:
+  description: |
+    Checkout cluster from clusterpool.
+
+    This task checks out an available cluster from an existing clusterpool 
+    using the build-harness. It makes this cluster available for
+    multi-task manipulation via workspaces.
+  workspaces: 
+  - name: build-harness
+    mountPath: /tekton/home/ci-tools
+    description: A workspace for the tools needed
+  steps:
+    - name: clusterpool-claim
+      env:
+        - name: CLUSTER_HOST_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: prac-secret
+              key: key2
+        - name: CLUSTER_HOST_API
+          valueFrom:
+            secretKeyRef: 
+              name: prac-secret
+              key: key1
+      image: quay.io/emmacdon/simple-dev:latest
+      script: |
+        cd /tekton/home/ci-tools/build-harness
+        make clusterpool/list-clusterpools CLUSTERPOOL_HOST_TOKEN=$CLUSTER_HOST_TOKEN CLUSTERPOOL_HOST_API=$CLUSTER_HOST_API CLUSTERPOOL_LIST_ARGUMENTS=" -o json"  | jq -r '.items[] | select(.status.ready > 0) | .metadata.name' > available_clusterpools.txt
+        export clusterpool_to_checkout=$(head -n 1 available_clusterpools.txt)
+        make clusterpool/checkout CLUSTERPOOL_HOST_TOKEN=$CLUSTER_HOST_TOKEN CLUSTERPOOL_HOST_API=$CLUSTER_HOST_API CLUSTERPOOL_NAME=$clusterpool_to_checkout CLUSTERPOOL_CLUSTER_CLAIM=$clusterpool_to_checkout-tekton
