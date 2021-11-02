@@ -1,0 +1,34 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: build-workspaces
+spec:
+  description: >-
+    This pipeline builds the environment task, provision2 task, and
+    deprovision2 task using a shared workspace amongst them.
+  workspaces:
+    - name: build-harness
+      description: A workspace for the tools needed
+  tasks:
+    - name: environment
+      taskRef:
+        name: ci-tools
+      workspaces:
+        - name: build-harness
+          workspace: build-harness
+    - name: provision
+      taskRef:
+        name: provision2
+      runAfter:
+        - environment
+      workspaces:
+        - name: build-harness
+          workspace: build-harness
+    - name: deprovision
+      taskRef:
+        name: deprovision2
+      runAfter:
+        - provision
+      workspaces:
+        - name: build-harness
+          workspace: build-harness

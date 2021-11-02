@@ -1,8 +1,0 @@
-apiVersion: tekton.dev/v1beta1
-kind: TaskRun
-metadata:
-  name: build-provision2
-spec:
-  serviceAccountName: clusterpool-builder
-  taskRef:
-    name: provision2
