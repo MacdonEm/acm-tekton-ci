@@ -18,7 +18,7 @@ spec:
           workspace: build-harness
     - name: provision
       taskRef:
-        name: provision2
+        name: provision
       runAfter:
         - environment
       workspaces:
@@ -26,7 +26,7 @@ spec:
           workspace: build-harness
     - name: deprovision
       taskRef:
-        name: deprovision2
+        name: deprovision
       runAfter:
         - provision
       workspaces:

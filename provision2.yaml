@@ -1,7 +1,7 @@
 apiVersion: tekton.dev/v1beta1
 kind: Task
 metadata:
-  name: provision2
+  name: provision
 spec:
   description: |
     Checkout cluster from clusterpool.
@@ -14,7 +14,7 @@ spec:
     mountPath: /tekton/home/ci-tools
     description: A workspace for the tools needed
   steps:
-    - name: clusterpool-claim
+    - name: clusterpool-claim-checkout
       env:
         - name: CLUSTER_HOST_TOKEN
           valueFrom:

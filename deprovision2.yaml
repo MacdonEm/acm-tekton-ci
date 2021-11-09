@@ -1,7 +1,7 @@
 apiVersion: tekton.dev/v1beta1
 kind: Task
 metadata:
-  name: deprovision2
+  name: deprovision
 spec:
   description: |
     Checkin cluster from clusterpool.
@@ -14,7 +14,7 @@ spec:
     mountPath: /tekton/home/ci-tools
     description: A workspace for the tools needed
   steps:
-    - name: clusterpool-claim
+    - name: clusterpool-claim-checkin
       env:
         - name: CLUSTER_HOST_TOKEN
           valueFrom:
