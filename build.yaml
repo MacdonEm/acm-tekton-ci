@@ -1,11 +1,11 @@
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
 metadata:
-  name: build-workspaces
+  name: build-step-one
 spec:
   description: >-
-    This pipeline builds the environment task, provision2 task, and
-    deprovision2 task using a shared workspace amongst them.
+    This pipeline builds the environment task, provision task, and
+    deprovision task using a shared workspace amongst them.
   workspaces:
     - name: build-harness
       description: A workspace for the tools needed

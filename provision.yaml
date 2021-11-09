@@ -8,7 +8,7 @@ spec:
 
     This task checks out an available cluster from an existing clusterpool 
     using the build-harness. It makes this cluster available for
-    multi-task manipulation via workspaces.
+    multi-task manipulation via workspaces. Uses I/O for credential passes.
   workspaces: 
   - name: build-harness
     mountPath: /tekton/home/ci-tools
