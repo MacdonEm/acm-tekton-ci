@@ -7,28 +7,34 @@ spec:
     This pipeline builds the environment task, provision task, and
     deprovision task using a shared workspace amongst them.
   workspaces:
-    - name: build-harness
+    - name: ci-tools
       description: A workspace for the tools needed
   tasks:
-    - name: environment
+    - name: environment-setup
       taskRef:
-        name: ci-tools
+        name: environment
       workspaces:
-        - name: build-harness
-          workspace: build-harness
-    - name: provision
-      taskRef:
-        name: provision
-      runAfter:
-        - environment
-      workspaces:
-        - name: build-harness
-          workspace: build-harness
-    - name: deprovision
+        - name: ci-tools
+          workspace: ci-tools
+    - name: checkin-clusterclaim
       taskRef:
         name: deprovision
       runAfter:
-        - provision
+        - environment-setup
       workspaces:
-        - name: build-harness
-          workspace: build-harness
+        - name: ci-tools
+          workspace: ci-tools
+      params: 
+        - name: clusterclaim-name
+          description: The name of the claimed cluster.
+          value: $(tasks.<task name>.results.clusterclaim-name)
+  results:    
+  - name: clusterclaim-user
+    description: The user cred of the claimed cluster.
+    value: $(tasks.<task name>.results.clusterclaim-user)
+  - name: clusterclaim-pass
+    description: The pass cred of the claimed cluster.
+    value: $(tasks.<task name>.results.clusterclaim-pass)
+  - name: clusterclaim-api
+    description: The api of the claimed cluster.
+    value: $(tasks.<task name>.results.clusterclaim-api)

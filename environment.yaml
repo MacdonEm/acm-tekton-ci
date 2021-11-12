@@ -1,14 +1,14 @@
 apiVersion: tekton.dev/v1beta1
 kind: Task
 metadata:
-  name: ci-tools
+  name: environment
   labels:
     app.kubernetes.io/version: "0.0.1"
   annotations:
     tekton.dev/pipelines.minVersion: "0.12.1"
     tekton.dev/categories: Kubernetes
     tekton.dev/tags: "aws, openshift, rhacm"
-    tekton.dev/displayName: "cm ClusterPool Checkout"
+    tekton.dev/displayName: "rhacm ci"
     tekton.dev/platforms: "linux/amd64"
 spec:
   description: |
@@ -17,11 +17,41 @@ spec:
     This task sets up the environment to use during the predicted run through
     the pipeline.
   workspaces:
-  - name: build-harness
+  - name: ci-tools
     mountPath: /tekton/home/ci-tools
-    description: A workspace for the tools needed
+    description: A workspace for needed tools
   steps:
-    - name: environment-setup
+    - name: build-harness
+      image: quay.io/emmacdon/simple-dev:latest
+      script: |
+        git clone https://github.com/cloudposse/build-harness.git $(workspaces.ci-tools.path)/build-harness
+        git clone https://github.com/open-cluster-management/build-harness-extensions.git $(workspaces.ci-tools.path)/build-harness-extensions
+    - name: clusterclaim-checkout
+      image: quay.io/emmacdon/simple-dev:latest
+      script: |
+        cd $(workspaces.ci-tools.path)/build-harness
+        make clusterpool/list-clusterpools CLUSTERPOOL_HOST_TOKEN=$CLUSTER_HOST_TOKEN CLUSTERPOOL_HOST_API=$CLUSTER_HOST_API CLUSTERPOOL_LIST_ARGUMENTS=" -o json"  | jq -r '.items[] | select(.status.ready > 0) | .metadata.name' > available_clusterpools.txt
+        export clusterpool_to_checkout=$(head -n 1 available_clusterpools.txt)
+        
+        echo -n "tekton-build-test" > $(results.clusterclaim-name.path)
+
+        make clusterpool/checkout CLUSTERPOOL_HOST_TOKEN=$CLUSTER_HOST_TOKEN CLUSTERPOOL_HOST_API=$CLUSTER_HOST_API CLUSTERPOOL_NAME=$clusterpool_to_checkout CLUSTERPOOL_CLUSTER_CLAIM="tekton-build-test"
+
+        echo "Cluster name should be:"
+        echo "tekton-build-test"
+
+        echo -n $(make clusterpool/get-cluster-username CLUSTERPOOL_HOST_TOKEN=$CLUSTER_HOST_TOKEN CLUSTERPOOL_HOST_API=$CLUSTER_HOST_API CLUSTERPOOL_CLUSTER_CLAIM="tekton-build-test") > $(results.clusterclaim-user.path)
+        echo -n $(make clusterpool/get-cluster-password CLUSTERPOOL_HOST_TOKEN=$CLUSTER_HOST_TOKEN CLUSTERPOOL_HOST_API=$CLUSTER_HOST_API CLUSTERPOOL_CLUSTER_CLAIM="tekton-build-test") > $(results.clusterclaim-pass.path)
+        echo -n $(make clusterpool/get-cluster-api CLUSTERPOOL_HOST_TOKEN=$CLUSTER_HOST_TOKEN CLUSTERPOOL_HOST_API=$CLUSTER_HOST_API CLUSTERPOOL_CLUSTER_CLAIM="tekton-build-test") > $(results.clusterclaim-api.path)
+
+        echo "And its api is..."
+        echo $(make clusterpool/get-cluster-api CLUSTERPOOL_HOST_TOKEN=$CLUSTER_HOST_TOKEN CLUSTERPOOL_HOST_API=$CLUSTER_HOST_API CLUSTERPOOL_CLUSTER_CLAIM="tekton-build-test")
+
+        echo "And its user is..."
+        echo $(make clusterpool/get-cluster-username CLUSTERPOOL_HOST_TOKEN=$CLUSTER_HOST_TOKEN CLUSTERPOOL_HOST_API=$CLUSTER_HOST_API CLUSTERPOOL_CLUSTER_CLAIM="tekton-build-test")
+        
+        echo "And its pass is..."
+        echo $(make clusterpool/get-cluster-password CLUSTERPOOL_HOST_TOKEN=$CLUSTER_HOST_TOKEN CLUSTERPOOL_HOST_API=$CLUSTER_HOST_API CLUSTERPOOL_CLUSTER_CLAIM="tekton-build-test")
       env:
         - name: CLUSTER_HOST_TOKEN
           valueFrom:
@@ -33,8 +63,12 @@ spec:
             secretKeyRef: 
               name: prac-secret
               key: key1
-      image: quay.io/emmacdon/simple-dev:latest
-      script: |
-        cd /tekton/home/ci-tools
-        git clone https://github.com/cloudposse/build-harness.git
-        git clone https://github.com/open-cluster-management/build-harness-extensions.git
+  results:    
+    - name: clusterclaim-name
+      description: The name of the claimed cluster.
+    - name: clusterclaim-user
+      description: The user cred of the claimed cluster.
+    - name: clusterclaim-pass
+      description: The pass cred of the claimed cluster.
+    - name: clusterclaim-api
+      description: The api of the claimed cluster.
