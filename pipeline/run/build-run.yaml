@@ -1,0 +1,49 @@
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  name: build-step-one-run
+spec:
+  serviceAccountName: clusterpool-builder
+  pipelineRef:
+    name: build-step-one
+  workspaces:
+    - name: build-harness
+      volumeClaimTemplate:
+        spec:
+          resources:
+            requests:
+              storage: 5M
+          volumeMode: Filesystem
+          accessModes:
+            - ReadWriteOnce
+          storageClassName: gp2
+    - name: deploy-repo
+      volumeClaimTemplate:
+        spec:
+          resources:
+            requests:
+              storage: 5M
+          volumeMode: Filesystem
+          accessModes:
+            - ReadWriteOnce
+          storageClassName: gp2
+    - name: canary-repo
+      volumeClaimTemplate:
+        spec:
+          resources:
+            requests:
+              storage: 5M
+          volumeMode: Filesystem
+          accessModes:
+            - ReadWriteOnce
+          storageClassName: gp2
+    - name: canary-reporting
+      volumeClaimTemplate:
+        spec:
+          resources:
+            requests:
+              storage: 5M
+          volumeMode: Filesystem
+          accessModes:
+            - ReadWriteOnce
+          storageClassName: gp2

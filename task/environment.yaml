@@ -1,0 +1,88 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: environment
+  labels:
+    app.kubernetes.io/version: "0.0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/categories: Kubernetes
+    tekton.dev/tags: ""
+    tekton.dev/displayName: ""
+    tekton.dev/platforms: "linux/amd64"
+spec:
+  description: |
+    Setup environment.
+
+    This task sets up the environment to use during the predicted run through
+    the pipeline.
+
+  workspaces:
+  - name: build-harness
+    description: A workspace for build-harness
+  - name: deploy-repo
+    description: A workspace for deploy-repo
+
+  params:
+  - name: build-harness
+    type: string
+    description: Pathway to use the tool build-harness
+  - name: deploy-repo
+    type: string
+    description: Pathway to use the tool deploy-repo
+  - name: CLUSTERCLAIM_NAME
+    type: string
+    description: Name of the cluster to be claimed
+  - name: 
+
+  steps:
+    - name: clusterclaim-checkout
+      image: quay.io/emmacdon/simple-dev:latest
+      script: |
+        cd $(params.build-harness)
+
+        RANDOM_IDENTIFIER=$(head /dev/urandom | LC_CTYPE=C tr -dc a-z0-9 | head -c 5 ; echo '')
+        ${CLUSTERCLAIM_NAME}=${CLUSTERCLAIM_NAME}-$RANDOM_IDENTIFIER
+
+        make clusterpool/list-clusterpools CLUSTERPOOL_HOST_TOKEN=$CLUSTER_HOST_TOKEN CLUSTERPOOL_HOST_API=$CLUSTER_HOST_API CLUSTERPOOL_LIST_ARGUMENTS=" -o json"  | jq -r '.items[] | select(.status.ready > 0) | .metadata.name' > available_clusterpools.txt
+        clusterpool_to_checkout=$(head -n 1 available_clusterpools.txt)
+        make clusterpool/checkout CLUSTERPOOL_HOST_TOKEN=$CLUSTER_HOST_TOKEN CLUSTERPOOL_HOST_API=$CLUSTER_HOST_API CLUSTERPOOL_NAME=$clusterpool_to_checkout CLUSTERPOOL_CLUSTER_CLAIM=$CLUSTERCLAIM_NAME
+
+        echo -n ${CLUSTERCLAIM_NAME} > $(results.clusterclaim-name.path)
+        echo -n $(make clusterpool/get-cluster-username CLUSTERPOOL_HOST_TOKEN=$CLUSTER_HOST_TOKEN CLUSTERPOOL_HOST_API=$CLUSTER_HOST_API CLUSTERPOOL_CLUSTER_CLAIM=$CLUSTERCLAIM_NAME) > $(results.clusterclaim-user.path)
+        echo -n $(make clusterpool/get-cluster-password CLUSTERPOOL_HOST_TOKEN=$CLUSTER_HOST_TOKEN CLUSTERPOOL_HOST_API=$CLUSTER_HOST_API CLUSTERPOOL_CLUSTER_CLAIM=$CLUSTERCLAIM_NAME) > $(results.clusterclaim-pass.path)
+        echo -n $(make clusterpool/get-cluster-api CLUSTERPOOL_HOST_TOKEN=$CLUSTER_HOST_TOKEN CLUSTERPOOL_HOST_API=$CLUSTER_HOST_API CLUSTERPOOL_CLUSTER_CLAIM=$CLUSTERCLAIM_NAME) > $(results.clusterclaim-api.path)
+        echo -n $(make clusterpool/get-cluster-kubeconfig CLUSTERPOOL_HOST_TOKEN=$CLUSTER_HOST_TOKEN CLUSTERPOOL_HOST_API=$CLUSTER_HOST_API CLUSTERPOOL_CLUSTER_CLAIM=$CLUSTERCLAIM_NAME) > $(results.clusterclaim-kubeconfig.path)
+      env:
+        - name: CLUSTER_HOST_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: prac-secret
+              key: key2
+        - name: CLUSTER_HOST_API
+          valueFrom:
+            secretKeyRef: 
+              name: prac-secret
+              key: key1
+        - name: CLUSTERPOOL_NAME
+          value: $(params.CLUSTERCLAIM_NAME)
+    - name: clusterclaim-deploy
+      image: <INSERT IMAGE HERE>
+      script: |
+        cd $(params.deploy-repo)
+
+        Okay so need to deploy ocm...
+
+        ... Then deploy acm with the deploy script...
+
+  results:    
+    - name: clusterclaim-name
+      description: The name of the claimed cluster
+    - name: clusterclaim-user
+      description: The user cred of the claimed cluster
+    - name: clusterclaim-pass
+      description: The pass cred of the claimed cluster
+    - name: clusterclaim-api
+      description: The api of the claimed cluster
+    - name: clusterclaim-kubeconfig
+      description: The kubeconfig of the claimed cluster

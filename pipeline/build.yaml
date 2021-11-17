@@ -1,0 +1,114 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: build
+  labels:
+    app.kubernetes.io/version: "0.0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/categories: Kubernetes
+    tekton.dev/tags: ""
+    tekton.dev/displayName: ""
+    tekton.dev/platforms: "linux/amd64"
+spec:
+  description: >-
+    Build Pipeline
+
+    This pipeline makes a basic build.
+
+  workspaces:
+    - name: build-harness
+      description: A workspace for build-harness
+    - name: deploy-repo
+      description: A workspace for deploy-repo
+    - name: canary-repo
+      description: A workspace for canary-repo
+    - name: canary-reporting
+      description: A workspace for canary-reporting
+
+  params:
+    - name: HOST_CLUSTER_CLAIM
+      type: string
+      description: Name A of the cluster to be claimed
+      default: tekton-host
+    - name: MANAGED_CLUSTER_CLAIM
+      type: string
+      description: Name B of the cluster to be claimed
+      default: tekton-managed
+
+  tasks:
+    - name: toolkit
+      taskRef:
+        name: toolkit
+      workspaces:
+        - name: build-harness
+          workspace: build-harness
+        - name: deploy-repo
+          workspace: deploy-repo
+        - name: canary-repo
+          workspace: canary-repo
+        - name: canary-reporting
+          workspace: canary-reporting
+
+    - name: setup-hub-environment
+      taskRef:
+        name: environment
+      runAfter: 
+        - toolkit
+      workspaces:
+       - name: build-harness
+         workspace: build-harness
+       - name: deploy-repo
+         workspace: deploy-repo
+      params:
+        - name: build-harness
+          value: $(tasks.toolkit.results.build-harness)
+        - name: deploy-repo
+          value: $(tasks.toolkit.results.deploy-repo)
+        - name: CLUSTERCLAIM_NAME
+          value: $(params.HOST_CLUSTER_CLAIM)
+
+    - name: setup-managed-environment
+      taskRef:
+        name: environment
+      runAfter: 
+        - toolkit
+      workspaces:
+       - name: build-harness
+         workspace: build-harness
+       - name: deploy-repo
+         workspace: deploy-repo
+      params:
+        - name: build-harness
+          value: $(tasks.toolkit.results.build-harness)
+        - name: deploy-repo
+          value: $(tasks.toolkit.results.deploy-repo)
+        - name: CLUSTERCLAIM_NAME
+          value: $(params.MANAGED_CLUSTER_CLAIM)
+
+    - name: checkin-clusterclaims
+      taskRef:
+        name: deprovision
+      runAfter:
+        - setup-environment
+      workspaces:
+        - name: build-harness
+          workspace: build-harness
+      params: 
+        - name: clusterclaim-name
+          description: The name of the claimed cluster.
+          value: $(tasks.setup-environment.results.clusterclaim-name)
+
+  results:    
+  - name: build-harness
+    description: Pathway to use the tool build-harness
+    value: $(tasks.toolkit.results.build-harness)
+  - name: deploy-repo
+    description: Pathway to use the tool deploy-repo
+    value: $(tasks.toolkit.results.deploy-repo)
+  - name: canary-repo
+    description: Pathway to use the tool canary-repo
+    value: $(tasks.toolkit.results.canary-repo)
+  - name: canary-reporting
+    description: Pathway to use the tool canary-reporting
+    value: $(tasks.toolkit.results.canary-reporting)
