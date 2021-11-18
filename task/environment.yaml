@@ -33,7 +33,9 @@ spec:
   - name: CLUSTERCLAIM_NAME
     type: string
     description: Name of the cluster to be claimed
-  - name: 
+  - name: SNAPSHOT
+    type: string
+    description: Snapshot to use for deploy
 
   steps:
     - name: clusterclaim-checkout
@@ -73,7 +75,16 @@ spec:
 
         Okay so need to deploy ocm...
 
+        um
+
         ... Then deploy acm with the deploy script...
+
+        oc login $(results.clusterclaim-api.path) -u $(results.clusterclaim-user.path) -p $(results.clusterclaim-pass.path)
+        echo "${SNAPSHOT}" | <probs need a stream here> ./start.sh --watch
+      env:
+        - name: SNAPSHOT
+          value: $(params.SNAPSHOT)
+
 
   results:    
     - name: clusterclaim-name

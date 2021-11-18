@@ -35,6 +35,11 @@ spec:
       type: string
       description: Name B of the cluster to be claimed
       default: tekton-managed
+    - name: SNAPSHOT
+      type: string
+      description: Snapshot to use for deploy
+      default: <probs default upstream snapshot>
+
 
   tasks:
     - name: toolkit
