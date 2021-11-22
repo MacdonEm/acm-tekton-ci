@@ -1,7 +1,7 @@
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
 metadata:
-  name: build
+  name: build-bvt
   labels:
     app.kubernetes.io/version: "0.0.1"
   annotations:
@@ -38,7 +38,7 @@ spec:
     - name: SNAPSHOT
       type: string
       description: Snapshot to use for deploy
-      default: <probs default upstream snapshot>
+      default: 2.3.5-SNAPSHOT-2021-11-22-19-25-28
 
 
   tasks:
@@ -70,8 +70,10 @@ spec:
           value: $(tasks.toolkit.results.build-harness)
         - name: deploy-repo
           value: $(tasks.toolkit.results.deploy-repo)
-        - name: CLUSTERCLAIM_NAME
+        - name: clusterclaim-role
           value: $(params.HOST_CLUSTER_CLAIM)
+        - name: snapshot
+          value: $(params.SNAPSHOT)
 
     - name: setup-managed-environment
       taskRef:
@@ -88,21 +90,27 @@ spec:
           value: $(tasks.toolkit.results.build-harness)
         - name: deploy-repo
           value: $(tasks.toolkit.results.deploy-repo)
-        - name: CLUSTERCLAIM_NAME
+        - name: clusterclaim-role
           value: $(params.MANAGED_CLUSTER_CLAIM)
+        - name: snapshot
+          value: $(params.SNAPSHOT)
 
-    - name: checkin-clusterclaims
+  finally: 
+    - name: cleanup
       taskRef:
-        name: deprovision
-      runAfter:
-        - setup-environment
+        name: breakdown-build
       workspaces:
         - name: build-harness
           workspace: build-harness
       params: 
-        - name: clusterclaim-name
-          description: The name of the claimed cluster.
-          value: $(tasks.setup-environment.results.clusterclaim-name)
+        - name: build-harness
+          value: $(tasks.toolkit.results.build-harness)
+        - name: clusterclaim-hub-name
+          description: The name of the claimed hub cluster.
+          value: $(tasks.setup-hub-environment.results.clusterclaim-name)
+        - name: clusterclaim-managed-name
+          description: The name of the claimed managed cluster.
+          value: $(tasks.setup-managed-environment.results.clusterclaim-name)
 
   results:    
   - name: build-harness
@@ -117,3 +125,25 @@ spec:
   - name: canary-reporting
     description: Pathway to use the tool canary-reporting
     value: $(tasks.toolkit.results.canary-reporting)
+
+  - name: clusterclaim-hub-name
+    value: $(tasks.setup-hub-environment.results.clusterclaim-name)
+  - name: clusterclaim-hub-user
+    value: $(tasks.setup-hub-environment.results.clusterclaim-user)
+  - name: clusterclaim-hub-pass
+    value: $(tasks.setup-hub-environment.results.clusterclaim-pass)
+  - name: clusterclaim-hub-api
+    value: $(tasks.setup-hub-environment.results.clusterclaim-api)
+  - name: clusterclaim-hub-kubeconfig
+    value: $(tasks.setup-hub-environment.results.clusterclaim-kubeconfig)
+
+  - name: clusterclaim-managed-name
+    value: $(tasks.setup-managed-environment.results.clusterclaim-name)
+  - name: clusterclaim-managed-user
+    value: $(tasks.setup-managed-environment.results.clusterclaim-user)
+  - name: clusterclaim-managed-pass
+    value: $(tasks.setup-managed-environment.results.clusterclaim-pass)
+  - name: clusterclaim-managed-api
+    value: $(tasks.setup-managed-environment.results.clusterclaim-api)
+  - name: clusterclaim-managed-kubeconfig
+    value: $(tasks.setup-managed-environment.results.clusterclaim-kubeconfig)

@@ -24,67 +24,22 @@ spec:
     description: A workspace for deploy-repo
 
   params:
-  - name: build-harness
-    type: string
-    description: Pathway to use the tool build-harness
-  - name: deploy-repo
-    type: string
-    description: Pathway to use the tool deploy-repo
-  - name: CLUSTERCLAIM_NAME
-    type: string
-    description: Name of the cluster to be claimed
-  - name: SNAPSHOT
-    type: string
-    description: Snapshot to use for deploy
-
-  steps:
-    - name: clusterclaim-checkout
-      image: quay.io/emmacdon/simple-dev:latest
-      script: |
-        cd $(params.build-harness)
-
-        RANDOM_IDENTIFIER=$(head /dev/urandom | LC_CTYPE=C tr -dc a-z0-9 | head -c 5 ; echo '')
-        ${CLUSTERCLAIM_NAME}=${CLUSTERCLAIM_NAME}-$RANDOM_IDENTIFIER
-
-        make clusterpool/list-clusterpools CLUSTERPOOL_HOST_TOKEN=$CLUSTER_HOST_TOKEN CLUSTERPOOL_HOST_API=$CLUSTER_HOST_API CLUSTERPOOL_LIST_ARGUMENTS=" -o json"  | jq -r '.items[] | select(.status.ready > 0) | .metadata.name' > available_clusterpools.txt
-        clusterpool_to_checkout=$(head -n 1 available_clusterpools.txt)
-        make clusterpool/checkout CLUSTERPOOL_HOST_TOKEN=$CLUSTER_HOST_TOKEN CLUSTERPOOL_HOST_API=$CLUSTER_HOST_API CLUSTERPOOL_NAME=$clusterpool_to_checkout CLUSTERPOOL_CLUSTER_CLAIM=$CLUSTERCLAIM_NAME
-
-        echo -n ${CLUSTERCLAIM_NAME} > $(results.clusterclaim-name.path)
-        echo -n $(make clusterpool/get-cluster-username CLUSTERPOOL_HOST_TOKEN=$CLUSTER_HOST_TOKEN CLUSTERPOOL_HOST_API=$CLUSTER_HOST_API CLUSTERPOOL_CLUSTER_CLAIM=$CLUSTERCLAIM_NAME) > $(results.clusterclaim-user.path)
-        echo -n $(make clusterpool/get-cluster-password CLUSTERPOOL_HOST_TOKEN=$CLUSTER_HOST_TOKEN CLUSTERPOOL_HOST_API=$CLUSTER_HOST_API CLUSTERPOOL_CLUSTER_CLAIM=$CLUSTERCLAIM_NAME) > $(results.clusterclaim-pass.path)
-        echo -n $(make clusterpool/get-cluster-api CLUSTERPOOL_HOST_TOKEN=$CLUSTER_HOST_TOKEN CLUSTERPOOL_HOST_API=$CLUSTER_HOST_API CLUSTERPOOL_CLUSTER_CLAIM=$CLUSTERCLAIM_NAME) > $(results.clusterclaim-api.path)
-        echo -n $(make clusterpool/get-cluster-kubeconfig CLUSTERPOOL_HOST_TOKEN=$CLUSTER_HOST_TOKEN CLUSTERPOOL_HOST_API=$CLUSTER_HOST_API CLUSTERPOOL_CLUSTER_CLAIM=$CLUSTERCLAIM_NAME) > $(results.clusterclaim-kubeconfig.path)
-      env:
-        - name: CLUSTER_HOST_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: prac-secret
-              key: key2
-        - name: CLUSTER_HOST_API
-          valueFrom:
-            secretKeyRef: 
-              name: prac-secret
-              key: key1
-        - name: CLUSTERPOOL_NAME
-          value: $(params.CLUSTERCLAIM_NAME)
-    - name: clusterclaim-deploy
-      image: <INSERT IMAGE HERE>
-      script: |
-        cd $(params.deploy-repo)
-
-        Okay so need to deploy ocm...
-
-        um
-
-        ... Then deploy acm with the deploy script...
-
-        oc login $(results.clusterclaim-api.path) -u $(results.clusterclaim-user.path) -p $(results.clusterclaim-pass.path)
-        echo "${SNAPSHOT}" | <probs need a stream here> ./start.sh --watch
-      env:
-        - name: SNAPSHOT
-          value: $(params.SNAPSHOT)
-
+    - name: build-harness
+      type: string
+      description: Pathway to use the tool build-harness
+    - name: deploy-repo
+      type: string
+      description: Pathway to use the tool deploy-repo
+    - name: clusterclaim-role
+      type: string
+      description: Name of the cluster to be claimed
+    - name: snapshot
+      type: string
+      description: Snapshot to use for deploy
+    - name: botty
+      type: string
+      description: User for deploy access
+      default: bottyDeploy
 
   results:    
     - name: clusterclaim-name
@@ -97,3 +52,57 @@ spec:
       description: The api of the claimed cluster
     - name: clusterclaim-kubeconfig
       description: The kubeconfig of the claimed cluster
+
+  steps:
+    - name: clusterclaim-checkout
+      image: quay.io/emmacdon/simple-dev:latest
+      script: |
+        cd $(params.build-harness)
+
+        CP_TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+        CP_API=$(oc whoami --show-console | sed ‘s/console-openshift-console.apps/api/g’`:6443)
+
+        RANDOM_IDENTIFIER=$(head /dev/urandom | LC_CTYPE=C tr -dc a-z0-9 | head -c 5 ; echo '')
+        ${clusterclaim-role}=${clusterclaim-role}-$RANDOM_IDENTIFIER
+
+        make clusterpool/list-clusterpools CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_LIST_ARGUMENTS=" -o json"  | jq -r '.items[] | select(.status.ready > 0) | .metadata.name' > available_clusterpools.txt
+        clusterpool_to_checkout=$(head -n 1 available_clusterpools.txt)
+        make clusterpool/checkout CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_NAME=$clusterpool_to_checkout CLUSTERPOOL_CLUSTER_CLAIM=$CLUSTERCLAIM_NAME
+
+        echo -n ${clusterclaim-role} > $(results.clusterclaim-name.path)
+        echo -n $(make clusterpool/get-cluster-username CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLUSTERCLAIM_NAME) > $(results.clusterclaim-user.path)
+        echo -n $(make clusterpool/get-cluster-password CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLUSTERCLAIM_NAME) > $(results.clusterclaim-pass.path)
+        echo -n $(make clusterpool/get-cluster-api CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLUSTERCLAIM_NAME) > $(results.clusterclaim-api.path)
+        echo -n $(make clusterpool/get-cluster-kubeconfig CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLUSTERCLAIM_NAME) > $(results.clusterclaim-kubeconfig.path)
+      env:
+        - name: CLUSTERPOOL_NAME
+          value: $(params.CLUSTERCLAIM_NAME)
+    - name: clusterclaim-deploy
+      image: quay.io/emmacdon/simple-dev:latest
+      script: |
+        cd $(params.deploy-repo)
+
+        set +x
+        echo "test"
+        set -x
+
+        export COMPOSITE_BUNDLE="true"
+        export QUAY_TOKEN=${botty-token}
+        export DEBUG=true
+
+        oc login ${claim-api} -u ${claim-user} -p ${claim-pass}
+        echo "${snapshot}" | ./start.sh --watch
+      env:
+        - name: snapshot
+          value: $(params.snapshot)
+        - name: claim-user
+          value: $(results.clusterclaim-user.path)
+        - name: claim-pass
+          value: $(results.clusterclaim-pass.path)
+        - name: claim-api
+          value: $(results.clusterclaim-api.path)
+        - name: botty-token
+          valueFrom:
+            secretKeyRef:
+              name: $(params.botty)
+              key: token

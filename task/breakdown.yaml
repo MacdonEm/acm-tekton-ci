@@ -1,0 +1,59 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: breakdown-build
+  labels:
+    app.kubernetes.io/version: "0.0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/categories: Kubernetes
+    tekton.dev/tags: ""
+    tekton.dev/displayName: ""
+    tekton.dev/platforms: "linux/amd64"
+spec:
+  description: |
+    Checkin cluster from clusterpool.
+
+    This task checks in an available cluster from an existing clusterpool 
+    using the build-harness. It makes this cluster available for
+    multi-task manipulation via workspaces.
+
+  workspaces: 
+  - name: build-harness
+    description: A workspace for build-harness
+
+  params:
+    - name: build-harness
+      type: string
+      description: Pathway to use the tool build-harness 
+    - name: clusterclaim-hub-name
+      description: The name of the claimed hub cluster.
+    - name: clusterclaim-managed-name
+      description: The name of the claimed managed cluster.
+
+  steps:
+    - name: clusterclaim-hub-checkin
+      image: quay.io/emmacdon/simple-dev:latest
+      script: |
+        cd $(params.build-harness)
+
+        CP_TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+        CP_API=$(oc whoami --show-console | sed ‘s/console-openshift-console.apps/api/g’`:6443)
+
+        make clusterpool/checkin CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=${clusterclaim-name}
+      env:
+        - name: clusterclaim-name
+          value: $(param.clusterclaim-hub-name)
+
+    - name: clusterclaim-managed-checkin
+      image: quay.io/emmacdon/simple-dev:latest
+      script: |
+        cd $(params.build-harness)
+
+        CP_TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+        CP_API=$(oc whoami --show-console | sed ‘s/console-openshift-console.apps/api/g’`:6443)
+
+        make clusterpool/checkin CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=${clusterclaim-name}
+      env:
+        - name: clusterclaim-name
+          value: $(param.clusterclaim-hub-name)

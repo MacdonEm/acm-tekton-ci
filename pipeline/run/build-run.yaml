@@ -1,11 +1,11 @@
 apiVersion: tekton.dev/v1beta1
 kind: PipelineRun
 metadata:
-  name: build-step-one-run
+  name: build-run
 spec:
-  serviceAccountName: clusterpool-builder
+  serviceAccountName: cluster-claim-sa
   pipelineRef:
-    name: build-step-one
+    name: build-bvt
   workspaces:
     - name: build-harness
       volumeClaimTemplate:
