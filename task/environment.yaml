@@ -16,13 +16,11 @@ spec:
 
     This task sets up the environment to use during the predicted run through
     the pipeline.
-
   workspaces:
   - name: build-harness
     description: A workspace for build-harness
   - name: deploy-repo
     description: A workspace for deploy-repo
-
   params:
     - name: build-harness
       type: string
@@ -30,7 +28,7 @@ spec:
     - name: deploy-repo
       type: string
       description: Pathway to use the tool deploy-repo
-    - name: clusterclaim-role
+    - name: CLUSTERCLAIM_ROLE
       type: string
       description: Name of the cluster to be claimed
     - name: snapshot
@@ -39,8 +37,7 @@ spec:
     - name: botty
       type: string
       description: User for deploy access
-      default: bottyDeploy
-
+      default: botty-deploy
   results:    
     - name: clusterclaim-name
       description: The name of the claimed cluster
@@ -52,43 +49,42 @@ spec:
       description: The api of the claimed cluster
     - name: clusterclaim-kubeconfig
       description: The kubeconfig of the claimed cluster
-
   steps:
     - name: clusterclaim-checkout
       image: quay.io/emmacdon/simple-dev:latest
       script: |
         cd $(params.build-harness)
 
-        CP_TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
-        CP_API=$(oc whoami --show-console | sed ‘s/console-openshift-console.apps/api/g’`:6443)
+        set +x
+        CP_TOKEN=`cat /var/run/secrets/kubernetes.io/serviceaccount/token`
+        CP_API=`oc whoami --show-console | sed 's/console-openshift-console.apps/api/g'`:6443
+        set -x
 
         RANDOM_IDENTIFIER=$(head /dev/urandom | LC_CTYPE=C tr -dc a-z0-9 | head -c 5 ; echo '')
-        ${clusterclaim-role}=${clusterclaim-role}-$RANDOM_IDENTIFIER
+        CLR=$CLUSTERCLAIM_ROLE-$RANDOM_IDENTIFIER
 
         make clusterpool/list-clusterpools CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_LIST_ARGUMENTS=" -o json"  | jq -r '.items[] | select(.status.ready > 0) | .metadata.name' > available_clusterpools.txt
         clusterpool_to_checkout=$(head -n 1 available_clusterpools.txt)
-        make clusterpool/checkout CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_NAME=$clusterpool_to_checkout CLUSTERPOOL_CLUSTER_CLAIM=$CLUSTERCLAIM_NAME
+        make clusterpool/checkout CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_NAME=$clusterpool_to_checkout CLUSTERPOOL_CLUSTER_CLAIM=$CLR
 
-        echo -n ${clusterclaim-role} > $(results.clusterclaim-name.path)
-        echo -n $(make clusterpool/get-cluster-username CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLUSTERCLAIM_NAME) > $(results.clusterclaim-user.path)
-        echo -n $(make clusterpool/get-cluster-password CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLUSTERCLAIM_NAME) > $(results.clusterclaim-pass.path)
-        echo -n $(make clusterpool/get-cluster-api CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLUSTERCLAIM_NAME) > $(results.clusterclaim-api.path)
-        echo -n $(make clusterpool/get-cluster-kubeconfig CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLUSTERCLAIM_NAME) > $(results.clusterclaim-kubeconfig.path)
+        echo -n $CLR > $(results.clusterclaim-name.path)
+        echo -n $(make clusterpool/get-cluster-username CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLR) > $(results.clusterclaim-user.path)
+        echo -n $(make clusterpool/get-cluster-password CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLR) > $(results.clusterclaim-pass.path)
+        echo -n $(make clusterpool/get-cluster-api CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLR) > $(results.clusterclaim-api.path)
+        echo -n $(make clusterpool/get-cluster-kubeconfig CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLR) > $(results.clusterclaim-kubeconfig.path)
       env:
-        - name: CLUSTERPOOL_NAME
-          value: $(params.CLUSTERCLAIM_NAME)
+        - name: CLUSTERCLAIM_ROLE
+          value: $(params.CLUSTERCLAIM_ROLE)
     - name: clusterclaim-deploy
       image: quay.io/emmacdon/simple-dev:latest
       script: |
         cd $(params.deploy-repo)
 
         set +x
-        echo "test"
-        set -x
-
         export COMPOSITE_BUNDLE="true"
-        export QUAY_TOKEN=${botty-token}
+        export QUAY_TOKEN=$(echo -n ${botty-token} | base 64 -d)
         export DEBUG=true
+        set -x
 
         oc login ${claim-api} -u ${claim-user} -p ${claim-pass}
         echo "${snapshot}" | ./start.sh --watch

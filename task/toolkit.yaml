@@ -41,15 +41,19 @@ spec:
     - name: canary-repo
       image: quay.io/emmacdon/simple-dev:latest
       script: |
-        git clone https://github.com/open-cluster-management/canary $(workspaces.canary-repo.path)/canary-repo
+        # git clone https://github.com/open-cluster-management/canary $(workspaces.canary-repo.path)/canary-repo
 
-        echo -n $(workspaces.canary-repo.path)/canary-repo > $(results.canary-repo.path)
+        # echo -n $(workspaces.canary-repo.path)/canary-repo > $(results.canary-repo.path)
+
+        echo -n "Not up yet" > $(results.canary-repo.path)
     - name: canary-reporting
       image: quay.io/emmacdon/simple-dev:latest
       script: |
-        git clone https://github.com/open-cluster-management/canary-reporting $(workspaces.canary-reporting.path)/canary-reporting
+        # git clone https://github.com/open-cluster-management/canary-reporting $(workspaces.canary-reporting.path)/canary-reporting
 
-        echo -n $(workspaces.canary-reporting.path)/canary-reporting > $(results.canary-reporting.path)
+        # echo -n $(workspaces.canary-reporting.path)/canary-reporting > $(results.canary-reporting.path)
+
+        echo -n "Not up yet" > $(results.canary-reporting.path)
   results:
     - name: build-harness
       description: Pathway to use the tool build-harness

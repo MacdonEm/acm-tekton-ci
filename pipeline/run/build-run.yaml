@@ -3,7 +3,7 @@ kind: PipelineRun
 metadata:
   name: build-run
 spec:
-  serviceAccountName: cluster-claim-sa
+  serviceAccountName: bvt-cluster-claim-sa
   pipelineRef:
     name: build-bvt
   workspaces:
