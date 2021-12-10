@@ -79,12 +79,12 @@ spec:
       image: quay.io/emmacdon/simple-dev:latest
       script: |
         cd $(params.deploy-repo)
+        touch tokenfile
+        echo ${botty-token}
 
-        set +x
         export COMPOSITE_BUNDLE="true"
         export QUAY_TOKEN=$(echo -n ${botty-token} | base 64 -d)
         export DEBUG=true
-        set -x
 
         oc login ${claim-api} -u ${claim-user} -p ${claim-pass}
         echo "${snapshot}" | ./start.sh --watch
