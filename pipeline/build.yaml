@@ -24,6 +24,8 @@ spec:
       description: A workspace for canary-repo
     - name: canary-reporting
       description: A workspace for canary-reporting
+    - name: tmp-credentials
+      description: A temporary workspace for kubeconfigs until a better solution is made
   params:
     - name: HOST_CLUSTER_CLAIM
       type: string
@@ -60,6 +62,8 @@ spec:
          workspace: build-harness
        - name: deploy-repo
          workspace: deploy-repo
+       - name: creds
+         workspace: tmp-credentials
       params:
         - name: build-harness
           value: $(tasks.toolkit.results.build-harness)
@@ -79,6 +83,8 @@ spec:
          workspace: build-harness
        - name: deploy-repo
          workspace: deploy-repo
+       - name: creds
+         workspace: tmp-credentials
       params:
         - name: build-harness
           value: $(tasks.toolkit.results.build-harness)

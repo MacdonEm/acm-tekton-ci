@@ -47,3 +47,13 @@ spec:
           accessModes:
             - ReadWriteOnce
           storageClassName: gp2
+    - name: tmp-credentials
+      volumeClaimTemplate:
+        spec:
+          resources:
+            requests:
+              storage: 5M
+          volumeMode: Filesystem
+          accessModes:
+            - ReadWriteOnce
+          storageClassName: gp2

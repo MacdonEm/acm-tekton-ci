@@ -21,6 +21,8 @@ spec:
     description: A workspace for build-harness
   - name: deploy-repo
     description: A workspace for deploy-repo
+  - name: creds
+    description: A temporary workspace for kubeconfigs until a better solution is made
   params:
     - name: build-harness
       type: string
@@ -62,16 +64,21 @@ spec:
 
         RANDOM_IDENTIFIER=$(head /dev/urandom | LC_CTYPE=C tr -dc a-z0-9 | head -c 5 ; echo '')
         CLR=$CLUSTERCLAIM_ROLE-$RANDOM_IDENTIFIER
+        kubecfg=$(workspaces.creds.path)/$CLR
+        mkdir $(workspaces.creds.path)/$CLR
 
         make clusterpool/list-clusterpools CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_LIST_ARGUMENTS=" -o json"  | jq -r '.items[] | select(.status.ready > 0) | .metadata.name' > available_clusterpools.txt
-        clusterpool_to_checkout=$(head -n 1 available_clusterpools.txt)
+        clusterpool_to_checkout=$(shuf -n 1 available_clusterpools.txt)
         make clusterpool/checkout CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_NAME=$clusterpool_to_checkout CLUSTERPOOL_CLUSTER_CLAIM=$CLR
 
         echo -n $CLR > $(results.clusterclaim-name.path)
         echo -n $(make clusterpool/get-cluster-username CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLR) > $(results.clusterclaim-user.path)
         echo -n $(make clusterpool/get-cluster-password CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLR) > $(results.clusterclaim-pass.path)
         echo -n $(make clusterpool/get-cluster-api CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLR) > $(results.clusterclaim-api.path)
-        echo -n $(make clusterpool/get-cluster-kubeconfig CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLR) > $(results.clusterclaim-kubeconfig.path)
+        make clusterpool/get-cluster-kubeconfig CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLR > $kubecfg/kubeconfig
+        echo -n $kubecfg > $(results.clusterclaim-kubeconfig.path)
+        
+        
       env:
         - name: CLUSTERCLAIM_ROLE
           value: $(params.CLUSTERCLAIM_ROLE)
@@ -79,11 +86,10 @@ spec:
       image: quay.io/emmacdon/simple-dev:latest
       script: |
         cd $(params.deploy-repo)
-        touch tokenfile
         echo ${botty-token}
 
         export COMPOSITE_BUNDLE="true"
-        export QUAY_TOKEN=$(echo -n ${botty-token} | base 64 -d)
+        export QUAY_TOKEN=$(echo -n ${botty-token} | base64 -d)
         export DEBUG=true
 
         oc login ${claim-api} -u ${claim-user} -p ${claim-pass}
