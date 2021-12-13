@@ -37,8 +37,8 @@ spec:
       default: tekton-managed
     - name: SNAPSHOT
       type: string
-      description: Snapshot to use for deploy
-      default: 2.3.5-SNAPSHOT-2021-11-22-19-25-28
+      description: Upstream snapshot to use for deploy
+      default: 2.4.2-SNAPSHOT-2021-12-13-16-36-52
   tasks:
     - name: toolkit
       taskRef:

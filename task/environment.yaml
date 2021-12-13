@@ -38,7 +38,7 @@ spec:
       description: Snapshot to use for deploy
     - name: botty
       type: string
-      description: User for deploy access
+      description: Access for deploy
       default: botty-deploy
   results:    
     - name: clusterclaim-name
@@ -51,20 +51,26 @@ spec:
       description: The api of the claimed cluster
     - name: clusterclaim-kubeconfig
       description: The kubeconfig of the claimed cluster
+  stepTemplate:
+    volumeMounts:
+      - mountPath: /step-storage
+        name: step-storage
   steps:
     - name: clusterclaim-checkout
       image: quay.io/emmacdon/simple-dev:latest
       script: |
         cd $(params.build-harness)
 
+        echo "Acquiring clusterpool credentials..."
         set +x
         CP_TOKEN=`cat /var/run/secrets/kubernetes.io/serviceaccount/token`
         CP_API=`oc whoami --show-console | sed 's/console-openshift-console.apps/api/g'`:6443
         set -x
+        echo "Clusterpool credentials acquired."
 
         RANDOM_IDENTIFIER=$(head /dev/urandom | LC_CTYPE=C tr -dc a-z0-9 | head -c 5 ; echo '')
         CLR=$CLUSTERCLAIM_ROLE-$RANDOM_IDENTIFIER
-        kubecfg=$(workspaces.creds.path)/$CLR
+        KUBECFG=$(workspaces.creds.path)/$CLR
         mkdir $(workspaces.creds.path)/$CLR
 
         make clusterpool/list-clusterpools CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_LIST_ARGUMENTS=" -o json"  | jq -r '.items[] | select(.status.ready > 0) | .metadata.name' > available_clusterpools.txt
@@ -75,10 +81,9 @@ spec:
         echo -n $(make clusterpool/get-cluster-username CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLR) > $(results.clusterclaim-user.path)
         echo -n $(make clusterpool/get-cluster-password CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLR) > $(results.clusterclaim-pass.path)
         echo -n $(make clusterpool/get-cluster-api CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLR) > $(results.clusterclaim-api.path)
-        make clusterpool/get-cluster-kubeconfig CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLR > $kubecfg/kubeconfig
-        echo -n $kubecfg > $(results.clusterclaim-kubeconfig.path)
-        
-        
+        make clusterpool/get-cluster-kubeconfig CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLR > $KUBECFG/kubeconfig
+        make clusterpool/get-cluster-kubeconfig CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLR > /step-storage/kubeconfig
+        echo -n $KUBECFG > $(results.clusterclaim-kubeconfig.path)
       env:
         - name: CLUSTERCLAIM_ROLE
           value: $(params.CLUSTERCLAIM_ROLE)
@@ -86,25 +91,34 @@ spec:
       image: quay.io/emmacdon/simple-dev:latest
       script: |
         cd $(params.deploy-repo)
-        echo ${botty-token}
+
+        
+        export KUBECONFIG=/step-storage/kubeconfig
+        export QUAY_TOKEN=$(echo "$botty-token" | base64 --decode)        
+        cat > ./prereqs/pull-secret.yaml << EOL
+        apiVersion: v1
+        data:
+          .dockerconfigjson: ${QUAY_TOKEN}
+        kind: Secret
+        metadata:
+          name: multiclusterhub-operator-pull-secret
+        type: kubernetes.io/dockerconfigjson
+        EOL
 
         export COMPOSITE_BUNDLE="true"
-        export QUAY_TOKEN=$(echo -n ${botty-token} | base64 -d)
         export DEBUG=true
 
-        oc login ${claim-api} -u ${claim-user} -p ${claim-pass}
+        # Add conditional for downstream vs upstream
+
         echo "${snapshot}" | ./start.sh --watch
       env:
         - name: snapshot
           value: $(params.snapshot)
-        - name: claim-user
-          value: $(results.clusterclaim-user.path)
-        - name: claim-pass
-          value: $(results.clusterclaim-pass.path)
-        - name: claim-api
-          value: $(results.clusterclaim-api.path)
         - name: botty-token
           valueFrom:
             secretKeyRef:
               name: $(params.botty)
               key: token
+  volumes: 
+    - name: step-storage
+      emptyDir: {}
