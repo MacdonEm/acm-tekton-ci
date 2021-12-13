@@ -35,21 +35,21 @@ spec:
         cd $(params.build-harness)
 
         CP_TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
-        CP_API=$(oc whoami --show-console | sed ‘s/console-openshift-console.apps/api/g’`:6443)
+        CP_API=`oc whoami --show-console | sed 's/console-openshift-console.apps/api/g'`:6443
 
-        make clusterpool/checkin CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=${clusterclaim-name}
+        make clusterpool/checkin CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLUSTERCLAIM_NAME
       env:
-        - name: clusterclaim-name
-          value: $(param.clusterclaim-hub-name)
+        - name: CLUSTERCLAIM_NAME
+          value: $(params.clusterclaim-hub-name)
     - name: clusterclaim-managed-checkin
       image: quay.io/emmacdon/simple-dev:latest
       script: |
         cd $(params.build-harness)
 
         CP_TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
-        CP_API=$(oc whoami --show-console | sed ‘s/console-openshift-console.apps/api/g’`:6443)
+        CP_API=`oc whoami --show-console | sed 's/console-openshift-console.apps/api/g'`:6443
 
-        make clusterpool/checkin CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=${clusterclaim-name}
+        make clusterpool/checkin CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLUSTERCLAIM_NAME
       env:
-        - name: clusterclaim-name
-          value: $(param.clusterclaim-managed-name)
+        - name: CLUSTERCLAIM_NAME
+          value: $(params.clusterclaim-managed-name)

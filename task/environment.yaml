@@ -92,13 +92,11 @@ spec:
       script: |
         cd $(params.deploy-repo)
 
-        
         export KUBECONFIG=/step-storage/kubeconfig
-        export QUAY_TOKEN=$(echo "$botty-token" | base64 --decode)        
         cat > ./prereqs/pull-secret.yaml << EOL
         apiVersion: v1
         data:
-          .dockerconfigjson: ${QUAY_TOKEN}
+          .dockerconfigjson: $QUAY_TOKEN
         kind: Secret
         metadata:
           name: multiclusterhub-operator-pull-secret
@@ -110,11 +108,11 @@ spec:
 
         # Add conditional for downstream vs upstream
 
-        echo "${snapshot}" | ./start.sh --watch
+        echo "$snapshot" | ./start.sh --watch
       env:
         - name: snapshot
           value: $(params.snapshot)
-        - name: botty-token
+        - name: QUAY_TOKEN
           valueFrom:
             secretKeyRef:
               name: $(params.botty)
