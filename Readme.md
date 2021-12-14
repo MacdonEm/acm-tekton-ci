@@ -6,10 +6,13 @@ This project makes use of Openshift Pipelines (Tekton) to create a
 fluid pipeline for build verification testing (BVT) and system 
 verification testing (SVT).
 
-!!! UNDER CONSTRUSCTION !!!
+---
+**!!! UNDER CONSTRUSCTION WARNING !!!**
+
 Please keep in mind this project is currently under construction. As such
 supported functionality is currently expanding. Current functionality
 will be listed below.
+
 ---
 ### Current Functionality:
 
