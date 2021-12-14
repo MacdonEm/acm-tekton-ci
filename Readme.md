@@ -6,7 +6,7 @@ This project makes use of Openshift Pipelines (Tekton) to create a
 fluid pipeline for build verification testing (BVT) and system 
 verification testing (SVT).
 
-** UNDER CONSTRUSCTION **
+!!! UNDER CONSTRUSCTION !!!
 Please keep in mind this project is currently under construction. As such
 supported functionality is currently expanding. Current functionality
 will be listed below.
@@ -18,7 +18,4 @@ This project currently supports:
 * Claims two clusters from a clusterpool and deploy ocm to them
 * Performs two checkins for the claimed clusters at the finished
 
-st=>start: create toolkit
-op1=>operation: checkout cluster and deploy ocm
-op2=>operation: checkout cluster and deploy ocm
-e=>end: checkin both clusters
+![Pipeline workflow diagram](/images/TektonPipelineFlow.png)
