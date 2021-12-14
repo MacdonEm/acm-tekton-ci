@@ -1,0 +1,65 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: toolkit
+  labels:
+    app.kubernetes.io/version: "0.0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/categories: Kubernetes
+    tekton.dev/tags: ""
+    tekton.dev/displayName: ""
+    tekton.dev/platforms: "linux/amd64"
+spec:
+  description: |
+    Define toolkit
+
+    Preloads workspace utilized by pipeline with necessary tools.
+  workspaces:
+  - name: build-harness
+    description: A workspace for build-harness
+  - name: deploy-repo
+    description: A workspace for deploy-repo
+  - name: canary-repo
+    description: A workspace for canary-repo
+  - name: canary-reporting
+    description: A workspace for canary-reporting
+  steps:
+    - name: build-harness
+      image: quay.io/emmacdon/simple-dev:latest
+      script: |
+        git clone https://github.com/cloudposse/build-harness.git $(workspaces.build-harness.path)/build-harness
+        git clone https://github.com/open-cluster-management/build-harness-extensions.git $(workspaces.build-harness.path)/build-harness-extensions
+
+        echo -n $(workspaces.build-harness.path)/build-harness > $(results.build-harness.path)
+    - name: deploy-repo
+      image: quay.io/emmacdon/simple-dev:latest
+      script: |
+        git clone https://github.com/open-cluster-management/deploy.git $(workspaces.deploy-repo.path)/deploy-repo
+
+        echo -n $(workspaces.deploy-repo.path)/deploy-repo > $(results.deploy-repo.path)
+    - name: canary-repo
+      image: quay.io/emmacdon/simple-dev:latest
+      script: |
+        # git clone https://github.com/open-cluster-management/canary $(workspaces.canary-repo.path)/canary-repo
+
+        # echo -n $(workspaces.canary-repo.path)/canary-repo > $(results.canary-repo.path)
+
+        echo -n "Not up yet" > $(results.canary-repo.path)
+    - name: canary-reporting
+      image: quay.io/emmacdon/simple-dev:latest
+      script: |
+        # git clone https://github.com/open-cluster-management/canary-reporting $(workspaces.canary-reporting.path)/canary-reporting
+
+        # echo -n $(workspaces.canary-reporting.path)/canary-reporting > $(results.canary-reporting.path)
+
+        echo -n "Not up yet" > $(results.canary-reporting.path)
+  results:
+    - name: build-harness
+      description: Pathway to use the tool build-harness
+    - name: deploy-repo
+      description: Pathway to use the tool deploy-repo
+    - name: canary-repo
+      description: Pathway to use the tool canary-repo
+    - name: canary-reporting
+      description: Pathway to use the tool canary-reporting

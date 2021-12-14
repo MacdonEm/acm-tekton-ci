@@ -1,0 +1,122 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: environment
+  labels:
+    app.kubernetes.io/version: "0.0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/categories: Kubernetes
+    tekton.dev/tags: ""
+    tekton.dev/displayName: ""
+    tekton.dev/platforms: "linux/amd64"
+spec:
+  description: |
+    Setup environment.
+
+    This task sets up the environment to use during the predicted run through
+    the pipeline.
+  workspaces:
+  - name: build-harness
+    description: A workspace for build-harness
+  - name: deploy-repo
+    description: A workspace for deploy-repo
+  - name: creds
+    description: A temporary workspace for kubeconfigs until a better solution is made
+  params:
+    - name: build-harness
+      type: string
+      description: Pathway to use the tool build-harness
+    - name: deploy-repo
+      type: string
+      description: Pathway to use the tool deploy-repo
+    - name: CLUSTERCLAIM_ROLE
+      type: string
+      description: Name of the cluster to be claimed
+    - name: snapshot
+      type: string
+      description: Snapshot to use for deploy
+    - name: botty
+      type: string
+      description: Access for deploy
+      default: botty-deploy
+  results:    
+    - name: clusterclaim-name
+      description: The name of the claimed cluster
+    - name: clusterclaim-user
+      description: The user cred of the claimed cluster
+    - name: clusterclaim-pass
+      description: The pass cred of the claimed cluster
+    - name: clusterclaim-api
+      description: The api of the claimed cluster
+    - name: clusterclaim-kubeconfig
+      description: The kubeconfig of the claimed cluster
+  stepTemplate:
+    volumeMounts:
+      - mountPath: /step-storage
+        name: step-storage
+  steps:
+    - name: clusterclaim-checkout
+      image: quay.io/emmacdon/simple-dev:latest
+      script: |
+        cd $(params.build-harness)
+
+        echo "Acquiring clusterpool credentials..."
+        set +x
+        CP_TOKEN=`cat /var/run/secrets/kubernetes.io/serviceaccount/token`
+        CP_API=`oc whoami --show-console | sed 's/console-openshift-console.apps/api/g'`:6443
+        set -x
+        echo "Clusterpool credentials acquired."
+
+        RANDOM_IDENTIFIER=$(head /dev/urandom | LC_CTYPE=C tr -dc a-z0-9 | head -c 5 ; echo '')
+        CLR=$CLUSTERCLAIM_ROLE-$RANDOM_IDENTIFIER
+        KUBECFG=$(workspaces.creds.path)/$CLR
+        mkdir $(workspaces.creds.path)/$CLR
+
+        make clusterpool/list-clusterpools CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_LIST_ARGUMENTS=" -o json"  | jq -r '.items[] | select(.status.ready > 0) | .metadata.name' > available_clusterpools.txt
+        clusterpool_to_checkout=$(shuf -n 1 available_clusterpools.txt)
+        make clusterpool/checkout CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_NAME=$clusterpool_to_checkout CLUSTERPOOL_CLUSTER_CLAIM=$CLR
+
+        echo -n $CLR > $(results.clusterclaim-name.path)
+        echo -n $(make clusterpool/get-cluster-username CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLR) > $(results.clusterclaim-user.path)
+        echo -n $(make clusterpool/get-cluster-password CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLR) > $(results.clusterclaim-pass.path)
+        echo -n $(make clusterpool/get-cluster-api CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLR) > $(results.clusterclaim-api.path)
+        make clusterpool/get-cluster-kubeconfig CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLR > $KUBECFG/kubeconfig
+        make clusterpool/get-cluster-kubeconfig CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLR > /step-storage/kubeconfig
+        echo -n $KUBECFG > $(results.clusterclaim-kubeconfig.path)
+      env:
+        - name: CLUSTERCLAIM_ROLE
+          value: $(params.CLUSTERCLAIM_ROLE)
+    - name: clusterclaim-deploy
+      image: quay.io/emmacdon/simple-dev:latest
+      script: |
+        cd $(params.deploy-repo)
+
+        export KUBECONFIG=/step-storage/kubeconfig
+        cat > ./prereqs/pull-secret.yaml << EOL
+        apiVersion: v1
+        data:
+          .dockerconfigjson: $QUAY_TOKEN
+        kind: Secret
+        metadata:
+          name: multiclusterhub-operator-pull-secret
+        type: kubernetes.io/dockerconfigjson
+        EOL
+
+        export COMPOSITE_BUNDLE="true"
+        export DEBUG=true
+
+        # Add conditional for downstream vs upstream
+
+        echo "$snapshot" | ./start.sh --watch
+      env:
+        - name: snapshot
+          value: $(params.snapshot)
+        - name: QUAY_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: $(params.botty)
+              key: token
+  volumes: 
+    - name: step-storage
+      emptyDir: {}

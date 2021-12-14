@@ -1,0 +1,44 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: tester
+spec:
+  description: |
+    Tester
+
+    This task is used to test things.
+  workspaces: 
+  - name: ci-tools
+    mountPath: /tekton/home/ci-tools
+    description: A workspace for the tools needed
+  params: 
+    - name: clusterclaim-name
+      description: The name of the claimed cluster.
+    - name: clusterclaim-user
+      description: The user of the claimed cluster.
+    - name: clusterclaim-pass
+      description: The pass of the claimed cluster.
+    - name: clusterclaim-api
+      description: The api of the claimed cluster.
+  steps:
+    - name: build-harness-check
+      image: quay.io/emmacdon/simple-dev:latest
+      script: |
+        echo "The path for the build harness is..."
+        echo $(workspaces.ci-tools.path)
+        echo "And it has..."
+        ls $(workspaces.ci-tools.path)/build-harness
+    - name: clusterclaim-checkin
+      image: quay.io/emmacdon/simple-dev:latest
+      script: |
+        echo "The clusterclaim name that was passed through is..."
+        echo $(params.clusterclaim-name)
+
+        echo "And its api is..."
+        echo $(params.clusterclaim-api)
+
+        echo "And its user is..."
+        echo $(params.clusterclaim-user)
+        
+        echo "And its pass is..."
+        echo $(params.clusterclaim-pass)
