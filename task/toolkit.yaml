@@ -36,6 +36,7 @@ spec:
       image: quay.io/emmacdon/simple-dev:latest
       script: |
         git clone https://github.com/open-cluster-management/deploy.git $(workspaces.deploy-repo.path)/deploy-repo
+        # git clone --single-branch --branch install-mce-alongside-acm https://github.com/open-cluster-management/deploy.git $(workspaces.deploy-repo.path)/deploy-repo
 
         echo -n $(workspaces.deploy-repo.path)/deploy-repo > $(results.deploy-repo.path)
     - name: canary-repo
