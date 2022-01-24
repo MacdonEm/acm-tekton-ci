@@ -38,7 +38,7 @@ spec:
     - name: SNAPSHOT
       type: string
       description: Upstream snapshot to use for deploy
-      default: 2.4.2-SNAPSHOT-2021-12-13-16-36-52
+      default: 2.4.2-SNAPSHOT-2022-01-19-14-21-52
   tasks:
     - name: toolkit
       taskRef:

@@ -68,22 +68,56 @@ spec:
         set -x
         echo "Clusterpool credentials acquired."
 
+        echo "Creating claim for cluster..."
         RANDOM_IDENTIFIER=$(head /dev/urandom | LC_CTYPE=C tr -dc a-z0-9 | head -c 5 ; echo '')
         CLR=$CLUSTERCLAIM_ROLE-$RANDOM_IDENTIFIER
         KUBECFG=$(workspaces.creds.path)/$CLR
         mkdir $(workspaces.creds.path)/$CLR
-
+        
+        echo "Making cluster claim..."
         make clusterpool/list-clusterpools CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_LIST_ARGUMENTS=" -o json"  | jq -r '.items[] | select(.status.ready > 0) | .metadata.name' > available_clusterpools.txt
         clusterpool_to_checkout=$(shuf -n 1 available_clusterpools.txt)
         make clusterpool/checkout CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_NAME=$clusterpool_to_checkout CLUSTERPOOL_CLUSTER_CLAIM=$CLR
+        echo "Cluster has been claimed!"
 
-        echo -n $CLR > $(results.clusterclaim-name.path)
-        echo -n $(make clusterpool/get-cluster-username CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLR) > $(results.clusterclaim-user.path)
-        echo -n $(make clusterpool/get-cluster-password CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLR) > $(results.clusterclaim-pass.path)
-        echo -n $(make clusterpool/get-cluster-api CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLR) > $(results.clusterclaim-api.path)
+        echo "Acquiring cluster credentials..."
+        set +x
+        CLUSTER_USER=$(make clusterpool/get-cluster-username CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLR)
+        CLUSTER_PASS=$(make clusterpool/get-cluster-password CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLR)
+        CLUSTER_API=$(make clusterpool/get-cluster-api CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLR)
         make clusterpool/get-cluster-kubeconfig CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLR > $KUBECFG/kubeconfig
         make clusterpool/get-cluster-kubeconfig CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLR > /step-storage/kubeconfig
+        set -x
+        cluster_success=1
+        wait_max=600
+        wait_time=0
+
+        # Poll for 5 minutes for cluster availability, attempting login every 30 seconds
+        echo "Polling cluster claim..."
+        while [[ ( $wait_time -lt $wait_max ) && $( "$cluster_success"  != 0 ) ]]; do
+          if [[ "$cluster_success" != 0 ]]; then
+              oc login $CLUSTER_API -u $CLUSTER_USER -p $CLUSTER_PASS --insecure-skip-tls-verify=true
+              if [[ "$?" == 0 ]]; then
+                  cluster_success=0
+                  echo "Claim is alive - login successful"
+              fi
+          fi
+          if [[ "$cluster_success" != 0 ]]; then
+            wait_time=$((wait_time+30))
+            echo "Waited $wait_time/$wait_max seconds for oc login to succeed on clusterclaim."
+            sleep 30
+          fi
+        done
+
+        echo "Setting cluster resources..."
+        echo -n $CLR > $(results.clusterclaim-name.path)
+        set +x
+        echo -n $CLUSTER_USER > $(results.clusterclaim-user.path)
+        echo -n $CLUSTER_PASS > $(results.clusterclaim-pass.path)
+        echo -n $CLUSTER_API > $(results.clusterclaim-api.path)
         echo -n $KUBECFG > $(results.clusterclaim-kubeconfig.path)
+        set -x
+        echo "Resources set! clusterclaim-checkout step complete!"
       env:
         - name: CLUSTERCLAIM_ROLE
           value: $(params.CLUSTERCLAIM_ROLE)
@@ -91,8 +125,17 @@ spec:
       image: quay.io/emmacdon/simple-dev:latest
       script: |
         cd $(params.deploy-repo)
-
+        
+        echo "\n"
         export KUBECONFIG=/step-storage/kubeconfig
+        echo "\n"
+        oc cluster-info
+        echo "\n"
+        sleep 2
+        echo "sleeping for 2 seconds"
+        oc api-resources | grep route
+        echo "----\n"
+
         cat > ./prereqs/pull-secret.yaml << EOL
         apiVersion: v1
         data:
@@ -107,6 +150,9 @@ spec:
         export DEBUG=true
 
         # Add conditional for downstream vs upstream
+        echo "final check..."
+        oc -n openshift-console get routes console -o jsonpath='{.status.ingress[0].routerCanonicalHostname}'
+        echo "\n"
 
         echo "$snapshot" | ./start.sh --watch
       env:

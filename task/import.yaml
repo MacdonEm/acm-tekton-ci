@@ -1,0 +1,51 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: environment
+  labels:
+    app.kubernetes.io/version: "0.0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/categories: Kubernetes
+    tekton.dev/tags: ""
+    tekton.dev/displayName: ""
+    tekton.dev/platforms: "linux/amd64"
+spec:
+  description: |
+    Define import
+
+    Performs import for cluster life cycle.
+  workspaces:
+  - name: undoubtedly stuff
+  params:
+    - name: probably something
+  results:
+    - name: probably something else
+  steps:
+    - name: contructable
+      image: baby's first image
+      script: |
+        -> get everything the import tests need
+
+        og code:
+        docker run \
+          --volume ~/.kube/config:/opt/.kube/config \
+          --volume $IMPORT_KUBECONFIGS:$OPTIONS_KUBECONFIG_MOUNT_PATH \
+          --volume $root_dir/results:/results \
+          --volume $root_dir/../options.yaml:/resources/options.yaml \
+          --env TRAVIS_BUILD_ID="${TRAVIS_BUILD_ID}" \
+          --env TEST_GROUP="${TEST_GROUP}" \
+          --volume $root_dir/../extra-import-kubeconfigs:/resources/extra-import-kubeconfigs \
+          quay.io/stolostron/cluster-lifecycle-e2e:${TEST_SNAPSHOT}
+
+        -> construct image for testing => testing_image
+    - name: testing
+      image: testing_image
+      script: |
+        -> consult with Justin maybe
+        -> when this image is complete, get results for reporting
+    - name: reporting
+      image: idk
+      script: |
+        -> report results to reporting stage
+  
