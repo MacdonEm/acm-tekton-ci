@@ -75,8 +75,14 @@ spec:
         mkdir $(workspaces.creds.path)/$CLR
         
         echo "Making cluster claim..."
-        make clusterpool/list-clusterpools CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_LIST_ARGUMENTS=" -o json"  | jq -r '.items[] | select(.status.ready > 0) | .metadata.name' > available_clusterpools.txt
+        make clusterpool/list-clusterpools CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_LIST_ARGUMENTS=" -o json"  | jq -r '.items[] | select(.status.standby + .status.ready > 0) | .metadata.name' > available_clusterpools.txt
         clusterpool_to_checkout=$(shuf -n 1 available_clusterpools.txt)
+
+        echo "--- Debugging ---"
+        cat available_clusterpools.txt
+        echo $clusterpool_to_checkout
+        echo "-----------------"
+
         make clusterpool/checkout CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_NAME=$clusterpool_to_checkout CLUSTERPOOL_CLUSTER_CLAIM=$CLR
         echo "Cluster has been claimed!"
 
@@ -88,20 +94,33 @@ spec:
         make clusterpool/get-cluster-kubeconfig CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLR > $KUBECFG/kubeconfig
         make clusterpool/get-cluster-kubeconfig CLUSTERPOOL_HOST_TOKEN=$CP_TOKEN CLUSTERPOOL_HOST_API=$CP_API CLUSTERPOOL_CLUSTER_CLAIM=$CLR > /step-storage/kubeconfig
         set -x
-        cluster_success=1
+        cluster_login=1
+        cluster_routes=1
         wait_max=600
         wait_time=0
 
         # Poll for 5 minutes for cluster availability, attempting login every 30 seconds
         echo "Polling cluster claim..."
-        while [[ ( $wait_time -lt $wait_max ) && $( "$cluster_success"  != 0 ) ]]; do
-          if [[ "$cluster_success" != 0 ]]; then
-              oc login $CLUSTER_API -u $CLUSTER_USER -p $CLUSTER_PASS --insecure-skip-tls-verify=true
-              if [[ "$?" == 0 ]]; then
-                  cluster_success=0
-                  echo "Claim is alive - login successful"
-              fi
+        while [[ ( $wait_time -lt $wait_max ) && ( ( "$cluster_login"  != 0 ) || ( "$cluster_routes" != 0 ) ) ]]; do
+          if [[ "$cluster_login" != 0 ]]; then
+            oc login $CLUSTER_API -u $CLUSTER_USER -p $CLUSTER_PASS --insecure-skip-tls-verify=true &
+            wait
+            if [[ "$?" == 0 ]]; then
+                cluster_login=0
+                echo "Claim is alive - login successful"
+            fi
           fi
+
+          if [[ ( "$cluster_login"  == 0 ) && ( "$cluster_routes" != 0 ) ]]; then
+            oc login $CLUSTER_API -u $CLUSTER_USER -p $CLUSTER_PASS --insecure-skip-tls-verify=true
+            oc -n openshift-console get routes console -o jsonpath='{.status.ingress[0].routerCanonicalHostname}' &
+            wait
+            if [[ "$?" == 0 ]]; then
+              cluster_routes=0
+              echo "Claim is responding - routes found"
+            fi
+          fi
+
           if [[ "$cluster_success" != 0 ]]; then
             wait_time=$((wait_time+30))
             echo "Waited $wait_time/$wait_max seconds for oc login to succeed on clusterclaim."
@@ -110,8 +129,8 @@ spec:
         done
 
         echo "Setting cluster resources..."
-        echo -n $CLR > $(results.clusterclaim-name.path)
         set +x
+        echo -n $CLR > $(results.clusterclaim-name.path)
         echo -n $CLUSTER_USER > $(results.clusterclaim-user.path)
         echo -n $CLUSTER_PASS > $(results.clusterclaim-pass.path)
         echo -n $CLUSTER_API > $(results.clusterclaim-api.path)
